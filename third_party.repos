@@ -1,0 +1,13 @@
+repositories:
+  src/isaac_ros_nvblox:
+    type: git
+    url: https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox.git
+    version: 1cc428956ddbd8c1c67801e99a6be822823901e7
+  src/vision_opencv:
+    type: git
+    url: https://github.com/ros-perception/vision_opencv.git
+    version: 9800f67cea477c44cfb64e349854bcb6a09dc9ce
+  src/witmotion_ros2:
+    type: git
+    url: https://github.com/ioio2995/witmotion_ros2.git
+    version: 0e8e8044e7d746056b982481c139adbefee80c43

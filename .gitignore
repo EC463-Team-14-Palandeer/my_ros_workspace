@@ -3,6 +3,7 @@
 /*
 !/.gitignore
 !/README.md
+!/third_party.repos
 !/src/
 
 # Ignore all source trees by default.

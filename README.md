@@ -1,6 +1,6 @@
 # Robo Cayote ROS 2 Workspace
 
-This repository tracks the first-party ROS 2 code for Robo Cayote and keeps heavy/vendor dependencies out of Git history.
+This repository tracks the first-party ROS 2 code for Robo Cayote and keeps heavy/vendor dependencies out of Git history, while pinning external repos to exact commits in `third_party.repos`.
 
 ## Mental Map
 
@@ -36,11 +36,31 @@ Not tracked in this repo:
 - Vendor/external stacks (`src/isaac_ros_nvblox`, `src/vision_opencv`, `src/witmotion_ros2`)
 - Non-ROS heavyweight tree (`vision/`) and wheel/deb artifacts
 
+Tracked dependency lockfile:
+
+- `third_party.repos` (exact versions for external repos)
+
+## External Dependency Pinning
+
+This workspace uses a `vcstool` manifest (`third_party.repos`) instead of Git submodules.
+
+Why:
+
+- Common ROS workflow (`src/` bootstrapping via `vcs import`)
+- No nested submodule commands for beginners
+- Exact reproducibility through pinned commit SHAs
+
+Current pinned commits:
+
+- `src/isaac_ros_nvblox` -> `1cc428956ddbd8c1c67801e99a6be822823901e7`
+- `src/vision_opencv` -> `9800f67cea477c44cfb64e349854bcb6a09dc9ce`
+- `src/witmotion_ros2` -> `0e8e8044e7d746056b982481c139adbefee80c43`
+
 ## Prerequisites
 
 - Ubuntu 22.04
 - ROS 2 Humble
-- `colcon`, `rosdep`, `python3-pip`
+- `colcon`, `rosdep`, `python3-pip`, `python3-vcstool`
 - Hardware/runtime deps used by this stack (examples):
   - RealSense driver (`realsense2_camera`)
   - Isaac ROS packages used by bringup
@@ -56,11 +76,24 @@ cd ~/workspaces/my_ros_workspace
 source /opt/ros/humble/setup.bash
 ```
 
-2) Ensure external dependency repos exist under `src/` (clone your team-approved remotes/branches for):
+2) Bootstrap pinned external repos:
 
-- `src/isaac_ros_nvblox`
-- `src/vision_opencv`
-- `src/witmotion_ros2`
+```bash
+vcs import --recursive --skip-existing src < third_party.repos
+```
+
+If those repos already exist locally, force them to the pinned commits:
+
+```bash
+git -C src/isaac_ros_nvblox fetch origin --tags
+git -C src/isaac_ros_nvblox checkout 1cc428956ddbd8c1c67801e99a6be822823901e7
+
+git -C src/vision_opencv fetch origin --tags
+git -C src/vision_opencv checkout 9800f67cea477c44cfb64e349854bcb6a09dc9ce
+
+git -C src/witmotion_ros2 fetch origin --tags
+git -C src/witmotion_ros2 checkout 0e8e8044e7d746056b982481c139adbefee80c43
+```
 
 3) Install missing package deps and build:
 
