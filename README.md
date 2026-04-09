@@ -5,7 +5,8 @@ This repository tracks the first-party ROS 2 code for Robo Cayote and keeps heav
 ## Mental Map
 
 - Active ROS workspace: `~/workspaces/my_ros_workspace` (has `src/`, `build/`, `install/`, `log/`)
-- Auxiliary workspace: `~/workspaces/isaac_ros-dev` (mostly source-only support content)
+- Isaac ROS common workspace: `~/workspaces/isaac_ros-dev` (Docker tooling, Dockerfiles, entrypoint scripts)
+- Docker image: `isaac_ros_dev-aarch64` (~26 GB, provides CUDA 12.2, ROS 2 Humble, Isaac ROS packages, RealSense driver, Nav2, robot_localization, etc.)
 
 Workspace shape:
 
@@ -58,16 +59,126 @@ Current pinned commits:
 
 ## Prerequisites
 
-- Ubuntu 22.04
+- Jetson (aarch64) running Ubuntu 22.04
+- Docker with NVIDIA Container Toolkit (`--runtime nvidia`)
+- User in the `docker` group (`sudo usermod -aG docker $USER && newgrp docker`)
+- `git-lfs` installed
+- Hardware:
+  - Intel RealSense D435 camera
+  - WitMotion IMU on a serial port (`/dev/ttyUSB*`)
+  - GPS module
+  - MQTT broker access
+
+For host-only development (no Docker), you also need:
+
 - ROS 2 Humble
 - `colcon`, `rosdep`, `python3-pip`, `python3-vcstool`
-- Hardware/runtime deps used by this stack (examples):
-  - RealSense driver (`realsense2_camera`)
-  - Isaac ROS packages used by bringup
-  - MQTT runtime (`python3-paho-mqtt`)
-  - Serial access for GPS/IMU (`/dev/ttyUSB*`)
+- All runtime packages listed in `package.xml` files (RealSense driver, Isaac ROS, Nav2, etc.)
 
-## Quick Start
+## Docker Pipeline
+
+This stack is designed to run inside the Isaac ROS dev container. The container provides all GPU-accelerated packages (Visual SLAM, nvblox, TensorRT, etc.) and system dependencies (RealSense driver, Nav2, robot_localization) that are not installed on the host.
+
+### How the Docker Image is Built
+
+The image is built in layers by `build_image_layers.sh`:
+
+```text
+NVIDIA L4T base (CUDA 12.2, Ubuntu 22.04)
+  └─ Dockerfile.aarch64         # core Isaac ROS dependencies
+      └─ Dockerfile.ros2_humble # ROS 2 Humble desktop + Isaac ROS packages
+          └─ Dockerfile.user    # non-root "admin" user, entrypoint
+```
+
+All Dockerfiles live in `~/workspaces/isaac_ros-dev/src/isaac_ros_common/docker/`.
+The resulting image is tagged `isaac_ros_dev-aarch64`.
+
+### Interactive Development Container
+
+Start the dev container:
+
+```bash
+cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common/scripts
+./run_dev.sh -d ~/workspaces/my_ros_workspace
+```
+
+The `-d` flag mounts `~/workspaces/my_ros_workspace` as `/workspaces/isaac_ros-dev` inside the container. Without `-d`, the script defaults to mounting `~/workspaces/isaac_ros-dev`.
+
+What `run_dev.sh` does:
+
+1. Builds the image layers (skipped if already cached or `--skip_image_build` is set)
+2. Runs `docker run` with `--privileged`, `--network host`, `--runtime nvidia`
+3. Mounts the workspace, X11 display, Jetson-specific paths (`/dev`, tegrastats, VPI)
+4. Drops you into a bash shell as the `admin` user at `/workspaces/isaac_ros-dev`
+
+Once inside the container:
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch my_robot_bringup my_robot_bringup.launch.py
+```
+
+### Production Container
+
+To run the stack headlessly (e.g., on boot), use `docker run` directly:
+
+```bash
+docker run -it --rm \
+  --privileged \
+  --network host \
+  --runtime nvidia \
+  -v ~/workspaces/my_ros_workspace:/workspaces/isaac_ros-dev \
+  -v /dev:/dev \
+  -v /run/udev:/run/udev:ro \
+  -e NVIDIA_VISIBLE_DEVICES=all \
+  -e NVIDIA_DRIVER_CAPABILITIES=all \
+  --name robo_cayote_prod \
+  isaac_ros_dev-aarch64 \
+  bash -c "source /opt/ros/humble/setup.bash && \
+           source /workspaces/isaac_ros-dev/install/setup.bash && \
+           ros2 launch my_robot_bringup my_robot_bringup.launch.py"
+```
+
+### Key Docker Details
+
+| Item | Value |
+|------|-------|
+| Image name | `isaac_ros_dev-aarch64` |
+| Container user | `admin` |
+| Workspace mount | host `~/workspaces/my_ros_workspace` -> container `/workspaces/isaac_ros-dev` |
+| Entrypoint | `/usr/local/bin/scripts/workspace-entrypoint.sh` (sources ROS, restarts udev) |
+| run_dev.sh location | `~/workspaces/isaac_ros-dev/src/isaac_ros_common/scripts/run_dev.sh` |
+| Config overrides | `~/.isaac_ros_common-config` (image key, skip build, container name suffix) |
+| Extra docker args | `~/.isaac_ros_dev-dockerargs` (one arg per line, e.g., extra volume mounts) |
+
+### Checking Container Status
+
+```bash
+docker ps -a                          # list all containers
+docker logs robo_cayote_prod          # view launch output
+docker exec -it robo_cayote_prod bash # attach a second shell
+```
+
+### Rebuilding the Docker Image
+
+If you need to rebuild from scratch (e.g., after updating Isaac ROS):
+
+```bash
+cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common/scripts
+./run_dev.sh -d ~/workspaces/my_ros_workspace
+```
+
+To skip the image build and reuse the cached image:
+
+```bash
+./run_dev.sh -d ~/workspaces/my_ros_workspace --skip_image_build
+```
+
+## Quick Start (Host-Only, Without Docker)
+
+> Most users should use the Docker pipeline above. Host-only is useful for lightweight Python-only development on packages like `robo_cayote_control` or `pico_comms`.
 
 1) Go to workspace and source ROS:
 
@@ -105,7 +216,7 @@ source install/setup.bash
 
 ## Run The Stack
 
-Primary integrated launch:
+Primary integrated launch (run inside the Docker container):
 
 ```bash
 ros2 launch my_robot_bringup my_robot_bringup.launch.py
