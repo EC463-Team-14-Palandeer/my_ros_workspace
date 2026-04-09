@@ -1,0 +1,44 @@
+# First-party ROS workspace repo (allowlist strategy).
+# Everything is ignored by default, then only first-party packages are re-included.
+/*
+!/.gitignore
+!/README.md
+!/src/
+
+# Ignore all source trees by default.
+/src/*
+
+# Track only first-party packages.
+!/src/my_robot_bringup/
+!/src/my_robot_bringup/**
+!/src/robo_cayote_control/
+!/src/robo_cayote_control/**
+!/src/pico_comms/
+!/src/pico_comms/**
+
+# Ignore copied/generated artifacts inside first-party trees.
+/src/my_robot_bringup/config/build/
+/src/my_robot_bringup/config/install/
+/src/my_robot_bringup/config/log/
+
+# Always ignore generated artifacts and heavyweight external trees.
+/build/
+/install/
+/log/
+/data/
+/vision/
+*.whl
+*.deb
+
+# Python and test artifacts.
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
+
+# Editor/system files.
+**/.DS_Store
+**/.vscode/
+**/.idea/

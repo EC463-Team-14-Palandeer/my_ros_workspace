@@ -1,0 +1,52 @@
+/**:
+  ros__parameters:
+    broker:
+      host: "6745aa058d8d4607a9ac29fb232b7e25.s1.eu.hivemq.cloud"
+      port: 8883
+      user: "Jetson-Robo-Cayote"
+      pass: "Idonotlikedeersforreal123!"
+      tls:
+        enabled: true
+
+    mqtt:
+      client_id: "robo-cayote-jetson"
+      keepalive: 60
+
+    bridge:
+      ros2mqtt:
+        ros_topics: [telemetry, status, proximity, gps, estop_ack, nav_ack]
+        telemetry:
+          ros_topic: "/robo_cayote/telemetry"
+          mqtt_topic: "robo-cayote/telemetry"
+          primitive: true
+        status:
+          ros_topic: "/robo_cayote/status"
+          mqtt_topic: "robo-cayote/status"
+          primitive: true
+        proximity:
+          ros_topic: "/robo_cayote/proximity"
+          mqtt_topic: "robo-cayote/proximity"
+          primitive: true
+        gps:
+          ros_topic: "/robo_cayote/gps"
+          mqtt_topic: "robo-cayote/gps"
+          primitive: true
+        estop_ack:
+          ros_topic: "/robo_cayote/navigation/estop_jetson_ack"
+          mqtt_topic: "robo-cayote/navigation/estop_jetson_ack"
+          primitive: true
+        nav_ack:
+          ros_topic: "/robo_cayote/navigation_jetson_ack"
+          mqtt_topic: "robo-cayote/navigation_jetson_ack"
+          primitive: true
+
+      mqtt2ros:
+        mqtt_topics: [estop, navigation]
+        estop:
+          mqtt_topic: "robo-cayote/navigation/estop"
+          ros_topic: "/robo_cayote/navigation/estop"
+          primitive: true
+        navigation:
+          mqtt_topic: "robo-cayote/navigation"
+          ros_topic: "/robo_cayote/navigation"
+          primitive: true

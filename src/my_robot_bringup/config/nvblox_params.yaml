@@ -1,0 +1,32 @@
+/**:
+  ros__parameters:
+    # --- 1. Global Setup ---
+    global_frame: "odom"
+    mapping_type: "dynamic" 
+    use_dynamic_occupancy_layer: true
+    
+    # --- 2. Slicing Config (TOP LEVEL) ---
+    esdf_mode: "2d"
+    publish_esdf_distance_slice: true
+    publish_static_map_slice: true
+    publish_dynamic_map_slice: true
+    publish_combined_map_slice: true
+    update_esdf_rate_hz: 10.0
+
+    # --- 3. THE STATIC MAPPER (Walls/Desks) ---
+    static_mapper:
+      esdf_slice_height: 0.55      # Slices the map at 55 cm
+      esdf_2d_min_height: 0.05     # Starts mapping at 5 cm off the ground
+      esdf_2d_max_height: 0.60     # Stops mapping at 60 cm (tweak if your robot is taller)
+      
+    # --- 4. THE DYNAMIC MAPPER (You/Moving things) ---
+    dynamic_mapper:
+      esdf_slice_height: 0.55      # Must match static
+      esdf_2d_min_height: 0.05     # Must match static
+      esdf_2d_max_height: 0.60     # Must match static
+      dynamic_is_different_threshold_m: 0.1 
+
+    # --- 5. Memory & Cleaning ---
+    map_clearing_radius_m: 5.0
+    decay_tsdf_rate_hz: 2.0
+    voxel_size: 0.05
