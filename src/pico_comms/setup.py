@@ -20,8 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
     'console_scripts': [
-        'publisher = pico_comms.sensor_pub:main',
-        'subscriber = pico_comms.sensor_sub:main',
+        'gps_bridge = pico_comms.gps_bridge:main',
+        'sensor_pub = pico_comms.sensor_pub:main',
     ],
 },
 )

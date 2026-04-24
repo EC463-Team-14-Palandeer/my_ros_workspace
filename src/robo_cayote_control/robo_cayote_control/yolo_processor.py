@@ -12,7 +12,7 @@ class YoloToRLNode(Node):
         
         self.get_logger().info("Loading TensorRT YOLO Engine...")
         # Point this to exactly where your .engine file is saved
-        engine_path = '/workspaces/isaac_ros-dev/src/robo_cayote_control/models/best_cloth.engine'
+        engine_path = '/workspaces/isaac_ros-dev/src/robo_cayote_control/models/best_cloth.onnx'
         self.model = YOLO(engine_path, task='detect') 
         self.bridge = CvBridge()
         
@@ -33,7 +33,7 @@ class YoloToRLNode(Node):
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         
         # Run YOLO inference
-        results = self.model(cv_image, classes=0, conf=0.5, verbose=False)
+        results = self.model(cv_image, imgsz=512, classes=0, conf=0.5, verbose=False)
         
         found = 0.0
         offset = 0.0

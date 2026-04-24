@@ -1,0 +1,85 @@
+(c) David DeAcereto: 
+
+TO OPEN ROS DOCKER:
+
+        cd to isaac_ros_common:
+                cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common/
+        Run da thing:
+                ./scripts/run_dev.sh 
+        LEAVE THIS TERMINAL OPEN
+        Go to vscode and attach to dev container (isaac-ros-dev)-->
+        ctrl + shift + p --> Dev containers: attach to radaradarada
+
+        NOTE: HAVE EVERY SENSOR YOU NEED PLUGGED IN BEFORE RUNNING CONTAINER!!!!
+
+
+General ROS workflow:
+
+ON FIRST START UP:
+        -> Activate venv - 
+                source sspbh_venv/bin/activate (you guys took OS, you know this)
+        -> Source our ROS packages (e.g. right library versions, packages, etc, otherwise the docker has stale images)- 
+                source install/setup.bash (must be in admin@ubuntu:/workspaces/isaac_ros-dev) 
+
+        -> FOR NOW we need to let the container actually read from the IMU
+                sudo chmod 666 /dev/ttyUSB0
+
+If any edits are made, we need to rebuild packages to reflect this:
+
+        ONLY, and I mean ONLY, rebuild the packages that WE HAVE MADE (my_robot_bringup, pico_comms, robo_cayote_control)
+
+        To build use command --> colcon build --packages-select my_robot_bringup pico_comms robo_cayote_control 
+        (IMPOOOOOORTAAAAAANTANTE!!!!11!!!!!!1!! dont forget to source right afterwards!)
+
+
+TO LAUNCH:
+
+        -> To actually launch ROS - ros2 launch my_robot_bringup my_robot_bringup.launch.py 
+
+EXTRA HELPER COMMANDS:
+
+        To see if we have data flowing, we can check using some fun and lovely ros2 commands such as, but not limited to...
+
+
+        NOTE: IF YOU ARE DOING THIS, DO IT IN ANOTHER TERMINAL AFTER LAUNCH. MAKE SURE TO SOURCE OUR ROS IN THIS NEW TERMINAL (See above)
+
+        -> ros2 topic list (see all topics)
+        -> ros2 service list (see all services)
+        -> ros2 topic hz <topic> (see topic output frequency)
+        -> ros2 topic echo <topic> (see topic message)
+        -> rviz2 (open rviz)
+
+
+GENERAL PACKAGE IDEA:
+
+        Now we get into what you'll need to know for how everything launches
+
+        Our launch file (my_robot_bringup.launch.py) determines which nodes we need to bring up. These nodes include the parameters...
+                                                                                                  Package -> Package it is in
+                                                                                                  Executable -> The file which holds logic for node
+                                                                                                  Name -> What node will be called
+
+        You shouldn't have to worry about name, but Package and Executable are muy importante
+
+        THE PACKAGE name is defined by which package it sits in (my_robot_bringup, pico_comms, or robo_cayote_control)
+        THE EXECUTABLE name is defined by what the file is referred to in the setup file. 
+                Ex. robo_cayote_control/setup.py -> Go to bottom to entry_points ->  'mqtt_ack_node = robo_cayote_control.mqtt_ack_node:main',    <--- mqtt_ack_node is the name for the executable
+                                                                                     'ris_go2rtc_node = robo_cayote_control.ris_go2rtc_node:main',
+                                                                                     'cayote_rl_brain = robo_cayote_control.cayote_rl_brain:main',
+                                                                                     'yolo_processor = robo_cayote_control.yolo_processor:main',
+                                                                                     'mission_controller = robo_cayote_control.mission_controller:main'
+
+        And then we add a lil pizzazz to each Node and we're good :D. These nodes are already made and shouldn't need to be edited (at least too much). But, what do I know? I'm a loser chud...
+
+        This "pizzazz" can be added either in the Node itself, or be defined in a .yaml file. If it's in the yaml file, you just have to add that to the node
+                                                                                                  Ex. Node(package='nav2_controller', executable='controller_server', name='controller_server',
+                                                                                                  parameters=[nav2_config, {'use_sim_time': use_sim_time}]),
+                                                                                                  ^
+                                                                                                  |
+                                                                                                  |
+                                                                                                  A path to the yaml
+
+
+URDF:
+
+        Man idfk it's just how our shit works. Bogdan knows about this and only let him mess with it. It doesn't even need to be messed with. Idk why I'm writing this. Fuck...

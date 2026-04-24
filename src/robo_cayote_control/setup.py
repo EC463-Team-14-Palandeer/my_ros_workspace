@@ -31,7 +31,8 @@ setup(
             'mqtt_ack_node = robo_cayote_control.mqtt_ack_node:main',
             'ris_go2rtc_node = robo_cayote_control.ris_go2rtc_node:main',
             'cayote_rl_brain = robo_cayote_control.cayote_rl_brain:main',
-            'yolo_processor = robo_cayote_control.yolo_processor:main'
+            'yolo_processor = robo_cayote_control.yolo_processor:main',
+            'mission_controller = robo_cayote_control.mission_controller:main'
         ],
     },
 )
