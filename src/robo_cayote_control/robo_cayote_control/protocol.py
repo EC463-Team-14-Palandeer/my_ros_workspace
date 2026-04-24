@@ -76,6 +76,55 @@ def summarize_navigation(payload: dict) -> dict:
     }
 
 
+def validate_go(payload: dict) -> tuple[bool, str]:
+    """Validate a GO command payload.
+
+    Expected shape: ``{"command": "GO", "source": str, "ts": number}``.
+    GO is the counterpart of estop — it releases the latched remote
+    emergency stop in :mod:`robo_cayote_control.arduino_motor_driver`.
+    """
+    if payload.get("command") != "GO":
+        return False, f"'command' must be 'GO', got {payload.get('command')!r}"
+    if not isinstance(payload.get("source"), str):
+        return False, "'source' field missing or not a string"
+    if not isinstance(payload.get("ts"), (int, float)):
+        return False, "'ts' field missing or not a number"
+    return True, ""
+
+
+def summarize_go(payload: dict) -> dict:
+    return {
+        "command": payload["command"],
+        "source": payload["source"],
+    }
+
+
+def validate_recall(payload: dict) -> tuple[bool, str]:
+    """Validate a RECALL command payload.
+
+    Expected shape:
+    ``{"command": "RECALL", "recalledTopic": str|null,
+       "recalledPayload": any|null, "source": str, "ts": number}``.
+    ``recalledTopic`` and ``recalledPayload`` may legitimately be null, so
+    we do not constrain their types here.
+    """
+    if payload.get("command") != "RECALL":
+        return False, f"'command' must be 'RECALL', got {payload.get('command')!r}"
+    if not isinstance(payload.get("source"), str):
+        return False, "'source' field missing or not a string"
+    if not isinstance(payload.get("ts"), (int, float)):
+        return False, "'ts' field missing or not a number"
+    return True, ""
+
+
+def summarize_recall(payload: dict) -> dict:
+    return {
+        "command": payload["command"],
+        "source": payload["source"],
+        "recalled_topic": payload.get("recalledTopic"),
+    }
+
+
 def create_message_id(topic: str) -> str:
     topic_slug = topic.strip("/").replace("/", "_")
     return f"{topic_slug}-{int(time.time() * 1000)}"

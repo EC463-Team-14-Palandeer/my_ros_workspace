@@ -14,7 +14,7 @@
 
     bridge:
       ros2mqtt:
-        ros_topics: [telemetry, status, proximity, gps, estop_ack, nav_ack]
+        ros_topics: [telemetry, status, proximity, gps, estop_ack, nav_ack, go_ack, recall_ack]
         telemetry:
           ros_topic: "/robo_cayote/telemetry"
           mqtt_topic: "robo-cayote/telemetry"
@@ -39,9 +39,17 @@
           ros_topic: "/robo_cayote/navigation_jetson_ack"
           mqtt_topic: "robo-cayote/navigation_jetson_ack"
           primitive: true
+        go_ack:
+          ros_topic: "/robo_cayote/navigation/go_jetson_ack"
+          mqtt_topic: "robo-cayote/navigation/go_jetson_ack"
+          primitive: true
+        recall_ack:
+          ros_topic: "/robo_cayote/navigation/recall_jetson_ack"
+          mqtt_topic: "robo-cayote/navigation/recall_jetson_ack"
+          primitive: true
 
       mqtt2ros:
-        mqtt_topics: [estop, navigation]
+        mqtt_topics: [estop, navigation, go, recall]
         estop:
           mqtt_topic: "robo-cayote/navigation/estop"
           ros_topic: "/robo_cayote/navigation/estop"
@@ -49,4 +57,12 @@
         navigation:
           mqtt_topic: "robo-cayote/navigation"
           ros_topic: "/robo_cayote/navigation"
+          primitive: true
+        go:
+          mqtt_topic: "robo-cayote/navigation/go"
+          ros_topic: "/robo_cayote/navigation/go"
+          primitive: true
+        recall:
+          mqtt_topic: "robo-cayote/navigation/recall"
+          ros_topic: "/robo_cayote/navigation/recall"
           primitive: true

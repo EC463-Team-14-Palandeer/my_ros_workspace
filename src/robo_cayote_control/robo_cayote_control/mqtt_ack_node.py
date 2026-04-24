@@ -1,3 +1,31 @@
+"""MQTT <-> ROS bridge for Robo Cayote control commands.
+
+This node is the single ingress point for operator commands arriving from
+the web dashboard over MQTT. Its job is threefold:
+
+1. Subscribe to a fixed set of MQTT topics (below), validate each payload
+   against the JSON schema defined in
+   :mod:`robo_cayote_control.protocol`, and forward the raw JSON onto the
+   corresponding ROS topic as a ``std_msgs/String``.
+2. For every message, publish a two-stage handshake back to MQTT:
+   first a lightweight "received" ACK, then a final "ok" or "error"
+   result (see :func:`robo_cayote_control.protocol.process_incoming_message`).
+3. Keep the routing table data-driven in ``self.command_routes`` so that
+   adding a new command type is a matter of adding one dict entry plus
+   a validator/summarizer pair in ``protocol.py``.
+
+Command topics (MQTT -> ROS):
+
+=======================================  ==============================  ==========================
+MQTT topic                               ROS topic                       Consumer
+=======================================  ==============================  ==========================
+robo-cayote/navigation/estop             /robo_cayote/navigation/estop   arduino_motor_driver
+robo-cayote/navigation/go                /robo_cayote/navigation/go      arduino_motor_driver
+robo-cayote/navigation                   /robo_cayote/navigation         mission_controller
+robo-cayote/navigation/recall            /robo_cayote/navigation/recall  mission_controller (TBD)
+=======================================  ==============================  ==========================
+"""
+
 import json
 import ssl
 from typing import Callable
@@ -11,9 +39,13 @@ from robo_cayote_control.protocol import (
     normalize_navigation,
     process_incoming_message,
     summarize_estop,
+    summarize_go,
     summarize_navigation,
+    summarize_recall,
     validate_estop,
+    validate_go,
     validate_navigation,
+    validate_recall,
 )
 
 
@@ -29,8 +61,14 @@ DEFAULTS = {
     "bridge.mqtt2ros.estop.ros_topic": "/robo_cayote/navigation/estop",
     "bridge.mqtt2ros.navigation.mqtt_topic": "robo-cayote/navigation",
     "bridge.mqtt2ros.navigation.ros_topic": "/robo_cayote/navigation",
+    "bridge.mqtt2ros.go.mqtt_topic": "robo-cayote/navigation/go",
+    "bridge.mqtt2ros.go.ros_topic": "/robo_cayote/navigation/go",
+    "bridge.mqtt2ros.recall.mqtt_topic": "robo-cayote/navigation/recall",
+    "bridge.mqtt2ros.recall.ros_topic": "/robo_cayote/navigation/recall",
     "bridge.ros2mqtt.estop_ack.mqtt_topic": "robo-cayote/navigation/estop_jetson_ack",
     "bridge.ros2mqtt.nav_ack.mqtt_topic": "robo-cayote/navigation_jetson_ack",
+    "bridge.ros2mqtt.go_ack.mqtt_topic": "robo-cayote/navigation/go_jetson_ack",
+    "bridge.ros2mqtt.recall_ack.mqtt_topic": "robo-cayote/navigation/recall_jetson_ack",
 }
 
 
@@ -57,9 +95,29 @@ class MqttAckNode(Node):
         self.nav_ack_mqtt_topic = self.get_parameter(
             "bridge.ros2mqtt.nav_ack.mqtt_topic"
         ).value
+        self.go_mqtt_topic = self.get_parameter(
+            "bridge.mqtt2ros.go.mqtt_topic"
+        ).value
+        self.go_ros_topic = self.get_parameter(
+            "bridge.mqtt2ros.go.ros_topic"
+        ).value
+        self.recall_mqtt_topic = self.get_parameter(
+            "bridge.mqtt2ros.recall.mqtt_topic"
+        ).value
+        self.recall_ros_topic = self.get_parameter(
+            "bridge.mqtt2ros.recall.ros_topic"
+        ).value
+        self.go_ack_mqtt_topic = self.get_parameter(
+            "bridge.ros2mqtt.go_ack.mqtt_topic"
+        ).value
+        self.recall_ack_mqtt_topic = self.get_parameter(
+            "bridge.ros2mqtt.recall_ack.mqtt_topic"
+        ).value
 
         self.estop_cmd_pub = self.create_publisher(String, self.estop_ros_topic, 10)
         self.nav_cmd_pub = self.create_publisher(String, self.nav_ros_topic, 10)
+        self.go_cmd_pub = self.create_publisher(String, self.go_ros_topic, 10)
+        self.recall_cmd_pub = self.create_publisher(String, self.recall_ros_topic, 10)
 
         self.command_routes = {
             self.estop_mqtt_topic: {
@@ -79,6 +137,24 @@ class MqttAckNode(Node):
                 "ros_normalizer": normalize_navigation,
                 "validator": validate_navigation,
                 "summary_builder": summarize_navigation,
+            },
+            self.go_mqtt_topic: {
+                "name": "go",
+                "ros_topic": self.go_ros_topic,
+                "ros_publisher": self.go_cmd_pub,
+                "ack_mqtt_topic": self.go_ack_mqtt_topic,
+                "ros_normalizer": None,
+                "validator": validate_go,
+                "summary_builder": summarize_go,
+            },
+            self.recall_mqtt_topic: {
+                "name": "recall",
+                "ros_topic": self.recall_ros_topic,
+                "ros_publisher": self.recall_cmd_pub,
+                "ack_mqtt_topic": self.recall_ack_mqtt_topic,
+                "ros_normalizer": None,
+                "validator": validate_recall,
+                "summary_builder": summarize_recall,
             },
         }
 

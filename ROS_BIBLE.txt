@@ -29,7 +29,8 @@ If any edits are made, we need to rebuild packages to reflect this:
         ONLY, and I mean ONLY, rebuild the packages that WE HAVE MADE (my_robot_bringup, pico_comms, robo_cayote_control)
 
         To build use command --> colcon build --packages-select my_robot_bringup pico_comms robo_cayote_control 
-        (IMPOOOOOORTAAAAAANTANTE!!!!11!!!!!!1!! dont forget to source right afterwards!)
+        (IMPOOOOOORTAAAAAANTANTE!!!!11!!!!!!1!! dont forget to source right afterwards!):
+        source install/setup.bash
 
 
 TO LAUNCH:

@@ -139,6 +139,9 @@ def generate_launch_description():
              parameters=[mqtt_config, {'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='cayote_rl_brain', 
              parameters=[{'use_sim_time': use_sim_time}]),
+        Node(package='robo_cayote_control', executable='arduino_motor_driver',
+             parameters=[{'use_sim_time': use_sim_time,
+                          'serial_port': '/dev/ttyACM1'}]),
         # Merged Witmotion IMU Node
         Node(package='witmotion_ros2', executable='witmotion_ros2', name='witmotion_imu',
              parameters=[{
