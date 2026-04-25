@@ -70,8 +70,6 @@ local_costmap:
         plugin: "nav2_costmap_2d::RangeSensorLayer"
         topics: [
           '/ultrasound/front', '/ultrasound/front_left', '/ultrasound/front_right',
-          '/ultrasound/side_right_front', '/ultrasound/side_right_back',
-          '/ultrasound/side_left_front', '/ultrasound/side_left_back',
           '/ultrasound/rear', '/ultrasound/rear_left', '/ultrasound/rear_right'
         ]
         clear_on_max_reading: true
