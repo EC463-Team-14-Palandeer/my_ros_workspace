@@ -11,6 +11,7 @@ import sys
 import numpy.core
 from functools import partial
 import math
+from collections import deque # Added for Frame Stacking to work. 
 
 # The "Envelope" Hack for NumPy compatibility
 sys.modules['numpy._core'] = sys.modules['numpy.core'] # Numpy backwards compatibility thing --> Ultralytics needs new numpy by default, so just have it use the old one. 
@@ -45,14 +46,14 @@ class CayoteInferenceNode(Node):
         self.target_angle = 0.0
         
         # New Costmap Variable (Starts empty to prevent premature inference)
-        self.latest_costmap_array = np.zeros(0, dtype=np.float32)
+        self.latest_costmap_array = np.zeros(0, dtype=np.float32) # Just makes 0s of cost map (Low-key-kir-k-enuinely maybe make it 100s to symbolize full state just in case.)
         
-        # Define the exact 6 sensors used in training
+        self.frame_stack = deque([np.zeros(26, dtype=np.float32) for _ in range(4)], maxlen=4) # Add deque that holds 4 frames worth of data. (Initially filled with 0s so no crash happens on accident.)
+
+        # Define the exact 6 sensors used in training --> THESE ARE THE REAL ONES.
         self.sonar_topics = [
             '/ultrasound/front', '/ultrasound/front_left', '/ultrasound/front_right',
-            '/ultrasound/rear', '/ultrasound/rear_left', '/ultrasound/rear_right', # DON'T FORGET TO UPDATE THE SENSOR PARAMETERS --> NEED THE NEW SIDE SENSORS (THE CHEAP ONES).
-            'side left front','side left back', 
-            'side right front', 'side right back'
+            '/ultrasound/rear', '/ultrasound/rear_left', '/ultrasound/rear_right',
         ]
         # Initialize dictionary to hold readings
         self.sonar_ranges = {topic: 10.0 for topic in self.sonar_topics} # Um... are these 10m range? I saw online 6.45... --> Don't know if this code is actually for that either to be honest...
@@ -91,7 +92,12 @@ class CayoteInferenceNode(Node):
         self.human_area_norm = msg.data[2] / 10000.0 
         
     def sonar_callback(self, msg, topic_name):
-        self.sonar_ranges[topic_name] = msg.range
+        # I changed this slightly. Now if there's a detected infinite or NAN value, then
+        # the entire script won't fuck itself to death. 
+        val = msg.range
+        if math.isnan(val) or math.isinf(val):
+            val = 10
+        self.sonar_ranges[topic_name] = val
 
     def odom_callback(self, msg):
         self.current_speed = msg.twist.twist.linear.x
@@ -123,8 +129,8 @@ class CayoteInferenceNode(Node):
         center_y = msg.info.height // 2
         center_x = msg.info.width // 2
         
-        # 3. Define crop size (10 cells in each direction = 20x20 grid) --> Maybe change this lowkirkenuinely
-        crop = 10 
+        # 3. Define crop size (10 cells in each direction = 20x20 grid) --> Maybe change this lowkirkenuinely to 3x3
+        crop = 1 # Changed from 10 to 1 --> 1 cell up, down, left, right.
         
         # 4. Safely calculate array bounds to avoid indexing errors
         y1 = max(0, center_y - crop)
@@ -136,7 +142,7 @@ class CayoteInferenceNode(Node):
         sliced = grid_2d[y1:y2, x1:x2]
         
         # Create a guaranteed 20x20 grid (handles edge case if costmap is smaller than 20x20)
-        mini_grid = np.zeros((crop * 2, crop * 2), dtype=np.float32)
+        mini_grid = np.zeros((3, 3), dtype=np.float32) # Changed from 20, 20
         shape_y, shape_x = sliced.shape
         mini_grid[0:shape_y, 0:shape_x] = sliced
         
@@ -145,33 +151,52 @@ class CayoteInferenceNode(Node):
 
     # --- MAIN LOOP ---
     def inference_loop(self):
-        # Do not run inference if the costmap hasn't populated yet
-        if len(self.latest_costmap_array) == 0:
+        # Make sure that a complete 9-element costmap is had before running:
+        if len(self.latest_costmap_array) != 9:
             return
             
-        # 1. Build Base Observation Vector (Size: 13) --> NEED TO UPDATE THIS SO MUCH
-        # IT IS MISSING THE 4 OTHER SIDE SENSORS AND THEN ALSO NEEDS TO BE 4x AS MANY (Reoeat everything 4 times each).
-        base_obs = np.array([
+        # 1. Build Base Observation Vector (Size: 13) --> NEED TO ADD THIS 4 TIMES EACH TO MAKE SURE WE CAN READ DATA CORRECTLY.
+        current_obs = np.array([
+            # YOLO:
             self.found, 
             self.offset, 
-            self.human_area_norm,  #These first three are wrong lmao :DDDD
-            self.sonar_ranges['/ultrasound/front'],
-            self.sonar_ranges['/ultrasound/front_left'],
-            self.sonar_ranges['/ultrasound/front_right'],
-            self.sonar_ranges['/ultrasound/rear'],
-            self.sonar_ranges['/ultrasound/rear_left'],
-            self.sonar_ranges['/ultrasound/rear_right'],
+            self.human_area_norm,  
+
+            # Odomoetry:
             self.current_speed,
             self.current_steer,
+
+            # Route:
             self.target_distance,
-            self.target_angle
+            self.target_angle,
+
+            # Sonars:
+            # These are the real values of the ultrasonic sensors being read:
+            self.sonar_ranges.get('/ultrasound/front', 10),
+            self.sonar_ranges.get('ultrasound/front_left', 10),
+            self.sonar_ranges.get('ultrasound/front_right', 10),
+            self.sonar_ranges.get('ultrasound/rear', 10),
+            self.sonar_ranges.get('ultrasound/rear_left', 10),
+            self.sonar_ranges.get('ultrasound/rear_right', 10),
+
+            # These are fake --> The original RL was trained on side sensors, and is
+            # expecing them, so we just make them read max values always:
+            10.0, # Side left front
+            10.0, # Side left back
+            10.0, # Side right front
+            10.0, # Side right back
+
         ], dtype=np.float32)
         
-        # 2. Concatenate with Costmap Data (13 + 400 = 413 Total Elements)
-        obs = np.concatenate((base_obs, self.latest_costmap_array))
+
+        
+        current_frame = np.concatenate((current_obs, self.latest_costmap_array))
+
+        self.frame_stack.append(current_frame) # Add the frame to the list.
+        stacked_obs = np.concatenate(self.frame_stack) # Flatten 4 frames into a single array
         
         # 3. Predict
-        action, _states = self.model.predict(obs, deterministic=True)
+        action, _states = self.model.predict(stacked_obs, deterministic=True)
         
         # 4. Scale Outputs (Adjust multipliers to match your gym environment)
         speed = float(action[0]) * 10.0
