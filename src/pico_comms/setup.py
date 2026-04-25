@@ -19,9 +19,9 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-    'console_scripts': [
-        'gps_bridge = pico_comms.gps_bridge:main',
-        'sensor_pub = pico_comms.sensor_pub:main',
-    ],
-},
+        'console_scripts': [
+            'arduino_bridge = pico_comms.arduino_bridge:main',
+            'gps_bridge = pico_comms.gps_bridge:main',
+        ],
+    },
 )

@@ -25,6 +25,17 @@ def generate_launch_description():
     # --- Launch Configuration ---
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
     enable_ris_stream = LaunchConfiguration('enable_ris_stream', default='false')
+    rtsp_url = LaunchConfiguration(
+        'rtsp_url',
+        default='rtsp://127.0.0.1:8554/robot_raw'
+    )
+    log_ffmpeg_stderr = LaunchConfiguration('log_ffmpeg_stderr', default='false')
+    arduino_serial_port = LaunchConfiguration(
+        'arduino_serial_port',
+        default='/dev/ttyACM0'
+    )
+    gps_host = LaunchConfiguration('gps_host', default='10.0.0.2')
+    gps_port = LaunchConfiguration('gps_port', default='5000')
 
     with open(urdf_file, 'r') as infp:
         robot_desc = infp.read()
@@ -139,9 +150,6 @@ def generate_launch_description():
              parameters=[mqtt_config, {'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='cayote_rl_brain', 
              parameters=[{'use_sim_time': use_sim_time}]),
-        Node(package='robo_cayote_control', executable='arduino_motor_driver',
-             parameters=[{'use_sim_time': use_sim_time,
-                          'serial_port': '/dev/ttyACM1'}]),
         # Merged Witmotion IMU Node
         Node(package='witmotion_ros2', executable='witmotion_ros2', name='witmotion_imu',
              parameters=[{
@@ -152,31 +160,61 @@ def generate_launch_description():
              remappings=[('imu', '/witmotion_imu/imu')])
     ])
     
-    gps_bridge_node = Node(
+    arduino_bridge_node = Node(
         package='pico_comms',
-        executable='gps_bridge', # This must match what is in your setup.py
-        name='gps_bridge_node',
-        output='screen'
+        executable='arduino_bridge',
+        name='arduino_bridge',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'serial_port': arduino_serial_port,
+        }],
     )
 
-    sensor_pub_node = Node(
+    gps_bridge_node = Node(
         package='pico_comms',
-        executable='sensor_pub', 
-        name='ultrasonic_sensor_node',
-        output='screen'
+        executable='gps_bridge',
+        name='gps_bridge_node',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'gps_host': gps_host,
+            'gps_port': ParameterValue(gps_port, value_type=int),
+        }],
+    )
+
+    ris_go2rtc_stream = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(control_pkg_share, 'launch', 'ris_go2rtc.launch.py')
+        ),
+        condition=IfCondition(enable_ris_stream),
+        launch_arguments={
+            'rtsp_url': rtsp_url,
+            'log_ffmpeg_stderr': log_ffmpeg_stderr,
+            'use_sim_time': use_sim_time,
+        }.items()
     )
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('enable_ris_stream', default_value='false'),
+        DeclareLaunchArgument('arduino_serial_port', default_value='/dev/ttyACM0'),
+        DeclareLaunchArgument('gps_host', default_value='10.0.0.2'),
+        DeclareLaunchArgument('gps_port', default_value='5000'),
+        DeclareLaunchArgument(
+            'rtsp_url',
+            default_value='rtsp://127.0.0.1:8554/robot_raw'
+        ),
+        DeclareLaunchArgument('log_ffmpeg_stderr', default_value='false'),
         
         realsense_node,
+        ris_go2rtc_stream,
         state_publishers,
         isaac_stack,
         localization_stack,
         nav2_stack,
         TimerAction(period=20.0, actions=[lifecycle_manager]), # Wait for nodes to load before waking them
         custom_logic,
+        arduino_bridge_node,
         gps_bridge_node,
-        sensor_pub_node,
     ])
