@@ -57,9 +57,10 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             # --- New Bandwidth & Stability Fixes ---
             'initial_reset': 'true',
-            'depth_module.depth_profile': '848x480x30',
-            'depth_module.infra_profile': '848x480x30',
-            'rgb_camera.color_profile': '640x480x30'
+            # Seemingly, these 3 are causing issues, as the Realsense is too computationally expensive.
+            'depth_module.depth_profile': '640x480x15', # Used to be 848x480x30 (Same for the other 2 below)
+            'depth_module.infra_profile': '640x480x15',
+            'rgb_camera.color_profile': '640x480x15'
         }.items()
     )
 
@@ -81,7 +82,8 @@ def generate_launch_description():
                 plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
                 name='visual_slam',
                 parameters=[{
-                    'publish_odom_to_base_tf': False, 
+                    'publish_odom_to_base_tf': True, # Tried to set this to True, but nothing changed.
+                    'camera_optical_frame_timeout': 0.2, # Supposedly gives the camera more time to send frame data
                     'publish_map_to_odom_tf': False,
                     'base_frame': 'base_footprint', 
                     'use_sim_time': use_sim_time,
@@ -196,7 +198,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('enable_ris_stream', default_value='true'),
         DeclareLaunchArgument('arduino_serial_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('gps_host', default_value='10.0.0.2'),
