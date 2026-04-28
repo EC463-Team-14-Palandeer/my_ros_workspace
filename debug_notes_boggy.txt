@@ -1,0 +1,40 @@
+Jetson IP Address: 10.239.182.121 
+
+to run ssh and log in, do:  # Must be in the same network as the Jetson to do this. Connect to BU VPN if not on campus/eduroam.
+
+ssh palandeer@10.239.182.121 
+**It will ask for login**
+
+***************  <---- Password
+
+You have successfully logged into the Jetson via SSH!
+
+
+
+The main issue (Right now):
+
+- ROS runs, RL model loads in, Go2RTC crashes (or does not load at all), and then the cayote starts running. Currently in headless. 
+it seems to be working fine, in terms of power and compute consumption. However, it is essentially just repeating the same two actions.
+- OR ROS does not load, and it gives the issue with odom, where the tree is not formed, thus nothing happens. Running JTOP reveals that it 
+
+
+Zhakhangir seems to think that the issue stems from Go2RTC not loading.
+Or that the ports keep changing. 
+
+
+To get to the bringup file, run the following command:
+
+cd src/my_robot_bringup/launch 
+
+Then run 
+
+vim my_robot_bringup.launch.py
+
+
+
+
+I made the Realsense go to lower resolution (640x480) and to 15 FPS for all it's modules.
+
+So now I am getting an error that the ROS2 cannot launch the bringup file at all. My computer is nearly dead, so I will work on this in the morning.
+As for the results of running with a lower framerate, it seems to have launched everything, but then the ROS/Jetson died entirely, and rebooted. It seems the Costmap/
+Nav2 are causing the Jetson to use too much RAM and as such is crashing. I wish I could run the ros2 code to confirm this. 
