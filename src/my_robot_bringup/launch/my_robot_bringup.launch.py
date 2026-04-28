@@ -9,7 +9,6 @@ from launch_ros.actions import Node, ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
 
-
 def generate_launch_description():
     # --- Path Setup ---
     pkg_share = get_package_share_directory('my_robot_bringup')
@@ -24,28 +23,13 @@ def generate_launch_description():
     mqtt_config = os.path.join(control_pkg_share, 'config', 'mqtt_params.yaml')
 
     # --- Launch Configuration ---
-    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    enable_realsense = LaunchConfiguration('enable_realsense', default='true')
-    enable_isaac_stack = LaunchConfiguration('enable_isaac_stack', default='true')
-    enable_localization = LaunchConfiguration('enable_localization', default='true')
-    enable_nav2 = LaunchConfiguration('enable_nav2', default='true')
-    enable_yolo_processor = LaunchConfiguration('enable_yolo_processor', default='true')
-    enable_rl_brain = LaunchConfiguration('enable_rl_brain', default='true')
+    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
     enable_ris_stream = LaunchConfiguration('enable_ris_stream', default='true')
     rtsp_url = LaunchConfiguration(
         'rtsp_url',
         default='rtsp://127.0.0.1:8554/robot_raw'
     )
-    yolo_rtsp_url = LaunchConfiguration(
-        'yolo_rtsp_url',
-        default='rtsp://127.0.0.1:8554/robot_yolo'
-    )
-    yolo_image_topic = LaunchConfiguration(
-        'yolo_image_topic',
-        default='/yolo/annotated_image'
-    )
-
-    log_ffmpeg_stderr = LaunchConfiguration('log_ffmpeg_stderr', default='false')
+    log_ffmpeg_stderr = LaunchConfiguration('log_ffmpeg_stderr', default='true')
     arduino_serial_port = LaunchConfiguration(
         'arduino_serial_port',
         default='/dev/ttyACM0'
@@ -61,7 +45,6 @@ def generate_launch_description():
     # 1. RealSense (Visual Sensors)
     realsense_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(realsense_share, 'launch', 'rs_launch.py')),
-        condition=IfCondition(enable_realsense),
         launch_arguments={
             'enable_color': 'true', 
             'enable_depth': 'true', 
@@ -92,7 +75,6 @@ def generate_launch_description():
     isaac_stack = ComposableNodeContainer(
         name='isaac_ros_container', namespace='', package='rclcpp_components',
         executable='component_container_mt',
-        condition=IfCondition(enable_isaac_stack),
         composable_node_descriptions=[
             ComposableNode(
                 package='isaac_ros_visual_slam', 
@@ -134,7 +116,7 @@ def generate_launch_description():
         Node(package='robot_localization', executable='navsat_transform_node', name='navsat_transform',
              parameters=[ekf_config, {'use_sim_time': use_sim_time}],
              remappings=[('imu', '/witmotion_imu/imu'), ('gps/fix', '/gps/fix'), ('odometry/filtered', '/odometry/local')])
-    ], condition=IfCondition(enable_localization))
+    ])
 
     # 5. Full Nav2 Stack
     nav2_stack = GroupAction([
@@ -148,13 +130,12 @@ def generate_launch_description():
              parameters=[nav2_config, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_behaviors', executable='behavior_server', name='behavior_server',
              parameters=[nav2_config, {'use_sim_time': use_sim_time}]),
-    ], condition=IfCondition(enable_nav2))
+    ])
 
     # 6. Lifecycle Manager (Wakes everything up in order)
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager', executable='lifecycle_manager',
         name='lifecycle_manager_navigation', output='screen',
-        condition=IfCondition(enable_nav2),
         parameters=[{'autostart': True, 'use_sim_time': use_sim_time,
                      'node_names': ['controller_server', 'planner_server', 
                                    'bt_navigator', 'waypoint_follower', 'behavior_server']}]
@@ -167,11 +148,7 @@ def generate_launch_description():
              parameters=[{'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='mqtt_ack_node', 
              parameters=[mqtt_config, {'use_sim_time': use_sim_time}]),
-        Node(package='robo_cayote_control', executable='yolo_processor',
-             condition=IfCondition(enable_yolo_processor),
-             parameters=[{'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='cayote_rl_brain', 
-             condition=IfCondition(enable_rl_brain),
              parameters=[{'use_sim_time': use_sim_time}]),
         # Merged Witmotion IMU Node
         Node(package='witmotion_ros2', executable='witmotion_ros2', name='witmotion_imu',
@@ -218,31 +195,8 @@ def generate_launch_description():
         }.items()
     )
 
-    yolo_go2rtc_stream = Node(
-        package='robo_cayote_control',
-        executable='ris_go2rtc_node',
-        name='ris_go2rtc_yolo_node',
-        output='screen',
-        condition=IfCondition(enable_ris_stream),
-        parameters=[{
-            'image_topic': yolo_image_topic,
-            'rtsp_url': yolo_rtsp_url,
-            'log_ffmpeg_stderr': ParameterValue(
-                log_ffmpeg_stderr,
-                value_type=bool,
-            ),
-            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
-        }],
-    )
-
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
-        DeclareLaunchArgument('enable_realsense', default_value='true'),
-        DeclareLaunchArgument('enable_isaac_stack', default_value='true'),
-        DeclareLaunchArgument('enable_localization', default_value='true'),
-        DeclareLaunchArgument('enable_nav2', default_value='true'),
-        DeclareLaunchArgument('enable_yolo_processor', default_value='true'),
-        DeclareLaunchArgument('enable_rl_brain', default_value='true'),
         DeclareLaunchArgument('enable_ris_stream', default_value='true'),
         DeclareLaunchArgument('arduino_serial_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('gps_host', default_value='10.0.0.2'),
@@ -251,16 +205,10 @@ def generate_launch_description():
             'rtsp_url',
             default_value='rtsp://127.0.0.1:8554/robot_raw'
         ),
-        DeclareLaunchArgument(
-            'yolo_rtsp_url',
-            default_value='rtsp://127.0.0.1:8554/robot_yolo'
-        ),
-        DeclareLaunchArgument('yolo_image_topic', default_value='/yolo/annotated_image'),
         DeclareLaunchArgument('log_ffmpeg_stderr', default_value='false'),
         
         realsense_node,
         ris_go2rtc_stream,
-        yolo_go2rtc_stream,
         state_publishers,
         isaac_stack,
         localization_stack,
