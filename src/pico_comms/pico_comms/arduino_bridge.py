@@ -225,7 +225,17 @@ class ArduinoBridge(Node):
         if now - last < period:
             return
         self._last_log_times[key] = now
-        getattr(self.get_logger(), level)(message)
+        logger = self.get_logger()
+        if level == 'debug':
+            logger.debug(message)
+        elif level == 'info':
+            logger.info(message)
+        elif level == 'warn':
+            logger.warn(message)
+        elif level == 'error':
+            logger.error(message)
+        else:
+            logger.info(message)
 
     def _debug_motion_throttled(self, key: str, message: str, period: float = 1.0):
         if not self.debug_motion:
