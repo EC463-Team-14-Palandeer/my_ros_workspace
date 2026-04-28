@@ -66,7 +66,7 @@ class ArduinoMotorDriver(Node):
 
         # --- Parameters ---------------------------------------------------
         # Serial link
-        self.declare_parameter('serial_port', '/dev/ttyACM1')
+        self.declare_parameter('serial_port', '/dev/ttyACM0')
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('serial_connect_retry_period', 1.0)
         self.declare_parameter('serial_connect_max_period', 10.0)

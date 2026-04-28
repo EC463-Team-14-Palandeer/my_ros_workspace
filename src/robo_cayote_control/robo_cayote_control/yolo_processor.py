@@ -18,6 +18,7 @@ class YoloToRLNode(Node):
         
         # Publisher for RL Brain
         self.data_pub = self.create_publisher(Float32MultiArray, '/yolo/human_data', 10)
+        self.image_pub = self.create_publisher(Image, '/yolo/annotated_image', 10)
         
         # Subscriber for Camera
         self.img_sub = self.create_subscription(
@@ -57,6 +58,11 @@ class YoloToRLNode(Node):
         data_msg = Float32MultiArray()
         data_msg.data = [found, offset, area]
         self.data_pub.publish(data_msg)
+
+        annotated_image = results[0].plot()
+        annotated_msg = self.bridge.cv2_to_imgmsg(annotated_image, encoding='bgr8')
+        annotated_msg.header = msg.header
+        self.image_pub.publish(annotated_msg)
 
 def main(args=None):
     rclpy.init(args=args)

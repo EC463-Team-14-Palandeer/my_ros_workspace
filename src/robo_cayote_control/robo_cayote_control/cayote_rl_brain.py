@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#!/workspaces/isaac_ros-dev/sspbh_venv/bin/python3
+import sys
+# sys.path.insert(0, '/workspaces/isaac_ros-dev/sspbh_venv/lib/python3.10/site-packages')
+
 import rclpy
 from rclpy.node import Node
 import numpy as np
@@ -11,14 +14,20 @@ import sys
 import numpy.core
 from functools import partial
 import math
+import time
 from collections import deque # Added for Frame Stacking to work. 
 
-# The "Envelope" Hack for NumPy compatibility
-sys.modules['numpy._core'] = sys.modules['numpy.core'] # Numpy backwards compatibility thing --> Ultralytics needs new numpy by default, so just have it use the old one. 
+# The "Envelope" Hack for NumPy compatibility --> Supposedly do not do this; evil command
+# sys.modules['numpy._core'] = sys.modules['numpy.core'] # Numpy backwards compatibility thing --> Ultralytics needs new numpy by default, so just have it use the old one.
 
 class CayoteInferenceNode(Node):
     def __init__(self):
         super().__init__('cayote_rl_brain')
+        self.declare_parameter('debug_motion', True)
+        self.declare_parameter('debug_motion_period', 1.0)
+        self.debug_motion = bool(self.get_parameter('debug_motion').value)
+        self.debug_motion_period = float(self.get_parameter('debug_motion_period').value)
+        self._last_debug_logs = {}
         
         self.get_logger().info("Loading SAC Model into Jetson Memory...")
         try:
@@ -27,7 +36,7 @@ class CayoteInferenceNode(Node):
                 "learning_rate": 0.0
             }
             
-            self.model = SAC.load("/workspaces/isaac_ros-dev/src/robo_cayote_control/models/sac_cayote_final_version", custom_objects=custom_objects)
+            self.model = SAC.load("/workspaces/isaac_ros-dev/src/robo_cayote_control/models/sac_cayote_curriculum_490000_steps.zip", custom_objects=custom_objects)
         except Exception as e:
             self.get_logger().error(f"Failed to load model: {e}")
             sys.exit(4) 
@@ -84,6 +93,17 @@ class CayoteInferenceNode(Node):
         
         # Main Loop
         self.timer = self.create_timer(0.1, self.inference_loop)
+
+    def _debug_throttled(self, key, message, period=None):
+        if not self.debug_motion:
+            return
+        now = time.monotonic()
+        last = self._last_debug_logs.get(key, 0.0)
+        period = self.debug_motion_period if period is None else period
+        if now - last < period:
+            return
+        self._last_debug_logs[key] = now
+        self.get_logger().info(message)
         
     # --- CALLBACKS ---
     def yolo_callback(self, msg):
@@ -153,6 +173,11 @@ class CayoteInferenceNode(Node):
     def inference_loop(self):
         # Make sure that a complete 9-element costmap is had before running:
         if len(self.latest_costmap_array) != 9:
+            self._debug_throttled(
+                'waiting_costmap',
+                f"Waiting for /local_costmap/costmap before publishing /cmd_vel "
+                f"(costmap_len={len(self.latest_costmap_array)})",
+            )
             return
             
         # 1. Build Base Observation Vector (Size: 13) --> NEED TO ADD THIS 4 TIMES EACH TO MAKE SURE WE CAN READ DATA CORRECTLY.
@@ -173,11 +198,11 @@ class CayoteInferenceNode(Node):
             # Sonars:
             # These are the real values of the ultrasonic sensors being read:
             self.sonar_ranges.get('/ultrasound/front', 10),
-            self.sonar_ranges.get('ultrasound/front_left', 10),
-            self.sonar_ranges.get('ultrasound/front_right', 10),
-            self.sonar_ranges.get('ultrasound/rear', 10),
-            self.sonar_ranges.get('ultrasound/rear_left', 10),
-            self.sonar_ranges.get('ultrasound/rear_right', 10),
+            self.sonar_ranges.get('/ultrasound/front_left', 10),
+            self.sonar_ranges.get('/ultrasound/front_right', 10),
+            self.sonar_ranges.get('/ultrasound/rear', 10),
+            self.sonar_ranges.get('/ultrasound/rear_left', 10),
+            self.sonar_ranges.get('/ultrasound/rear_right', 10),
 
             # These are fake --> The original RL was trained on side sensors, and is
             # expecing them, so we just make them read max values always:
@@ -196,7 +221,14 @@ class CayoteInferenceNode(Node):
         stacked_obs = np.concatenate(self.frame_stack) # Flatten 4 frames into a single array
         
         # 3. Predict
-        action, _states = self.model.predict(stacked_obs, deterministic=True)
+        try:
+            action, _states = self.model.predict(stacked_obs, deterministic=True)
+        except Exception as exc:
+            self.get_logger().error(
+                f"RL model prediction failed; no /cmd_vel published. "
+                f"obs_shape={stacked_obs.shape} error={exc}"
+            )
+            return
         
         # 4. Scale Outputs (Adjust multipliers to match your gym environment)
         speed = float(action[0]) * 10.0
@@ -207,6 +239,17 @@ class CayoteInferenceNode(Node):
         twist.linear.x = speed
         twist.angular.z = steer
         self.cmd_vel_pub.publish(twist)
+        self._debug_throttled(
+            'published_cmd_vel',
+            "Published /cmd_vel "
+            f"linear.x={speed:.3f} angular.z={steer:.3f} "
+            f"raw_action=({float(action[0]):.3f}, {float(action[1]):.3f}) "
+            f"yolo=(found={self.found:.1f}, offset={self.offset:.3f}, area={self.human_area_norm:.3f}) "
+            f"route=(distance={self.target_distance:.3f}, angle={self.target_angle:.3f}) "
+            f"front_sonar={self.sonar_ranges.get('/ultrasound/front', 10):.3f} "
+            f"costmap_minmax=({float(np.min(self.latest_costmap_array)):.2f}, "
+            f"{float(np.max(self.latest_costmap_array)):.2f})",
+        )
 
 def main(args=None):
     rclpy.init(args=args)

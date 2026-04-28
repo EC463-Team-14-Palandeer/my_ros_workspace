@@ -153,6 +153,7 @@ class ArduinoBridge(Node):
         self.declare_parameter('estop_topic', '/robo_cayote/navigation/estop')
         self.declare_parameter('go_topic', '/robo_cayote/navigation/go')
         self.declare_parameter('publish_side_sensors', False)
+        self.declare_parameter('debug_motion', True)
 
         p = self.get_parameter
         self.serial_port = p('serial_port').value
@@ -169,6 +170,7 @@ class ArduinoBridge(Node):
         self.cmd_vel_timeout = float(p('cmd_vel_timeout').value)
         self.watchdog_period = float(p('watchdog_period').value)
         self.publish_side_sensors = bool(p('publish_side_sensors').value)
+        self.debug_motion = bool(p('debug_motion').value)
 
         # Start clear so the soft e-stop does not block forward test commands
         # before the first front sonar reading arrives.
@@ -224,6 +226,11 @@ class ArduinoBridge(Node):
             return
         self._last_log_times[key] = now
         getattr(self.get_logger(), level)(message)
+
+    def _debug_motion_throttled(self, key: str, message: str, period: float = 1.0):
+        if not self.debug_motion:
+            return
+        self._log_throttled('info', f'debug_motion_{key}', message, period=period)
 
     def _serial_read_loop(self):
         delay = self.retry_period
@@ -350,9 +357,17 @@ class ArduinoBridge(Node):
     def _write_chars(self, chars: str) -> bool:
         with self._serial_lock:
             if self.ser is None:
+                self._debug_motion_throttled(
+                    'serial_closed',
+                    f"Skipping Arduino write {chars!r}: serial is not connected.",
+                )
                 return False
             try:
                 self.ser.write(chars.encode('ascii'))
+                self._debug_motion_throttled(
+                    'serial_write',
+                    f"Wrote Arduino command chars={chars!r}",
+                )
                 return True
             except Exception as exc:
                 self.get_logger().error(f"Serial write failed: {exc}")
@@ -374,10 +389,20 @@ class ArduinoBridge(Node):
     def _cmd_vel_cb(self, msg: Twist):
         self.last_cmd_time = self.get_clock().now()
         if self.estop_active:
+            self._debug_motion_throttled(
+                'estop_block',
+                "Ignoring /cmd_vel because remote ESTOP is latched.",
+            )
             # Keep the e-stop latch authoritative; GO or estop=false must clear
             # it before autonomous/manual velocity commands can move the robot.
             return
         speed, steer = self._twist_to_chars(msg.linear.x, msg.angular.z)
+        self._debug_motion_throttled(
+            'cmd_vel_to_chars',
+            f"/cmd_vel linear.x={msg.linear.x:.3f} angular.z={msg.angular.z:.3f} "
+            f"front_range={self.front_range:.3f} estop={self.estop_active} "
+            f"-> speed={speed!r} steer={steer!r}",
+        )
         self._write_pair_if_changed(speed, steer)
 
     def _front_range_cb(self, msg: Range):
@@ -450,6 +475,11 @@ class ArduinoBridge(Node):
         now = self.get_clock().now()
         dt = (now - self.last_cmd_time).nanoseconds / 1e9
         if dt > self.cmd_vel_timeout:
+            self._debug_motion_throttled(
+                'watchdog_stop',
+                f"No /cmd_vel for {dt:.2f}s; writing neutral stop.",
+                period=2.0,
+            )
             self._write_pair_if_changed(CMD_SPEED_STOP, CMD_STEER_STRAIGHT)
 
     def destroy_node(self):

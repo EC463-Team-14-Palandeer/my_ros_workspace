@@ -23,6 +23,7 @@ ON FIRST START UP:
 
         -> FOR NOW we need to let the container actually read from the IMU
                 sudo chmod 666 /dev/ttyUSB0
+                sudo chmod 666 /dev/ttyACM0
 
 If any edits are made, we need to rebuild packages to reflect this:
 
