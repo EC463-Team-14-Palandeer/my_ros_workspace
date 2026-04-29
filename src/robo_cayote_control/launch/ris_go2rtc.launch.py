@@ -6,6 +6,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
+    node_name = LaunchConfiguration("node_name")
     image_topic = LaunchConfiguration("image_topic")
     rtsp_url = LaunchConfiguration("rtsp_url")
     width = LaunchConfiguration("width")
@@ -23,6 +24,10 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "node_name",
+                default_value="ris_go2rtc_node",
+            ),
             DeclareLaunchArgument(
                 "image_topic",
                 default_value="/camera/camera/color/image_raw",
@@ -46,7 +51,7 @@ def generate_launch_description():
             Node(
                 package="robo_cayote_control",
                 executable="ris_go2rtc_node",
-                name="ris_go2rtc_node",
+                name=node_name,
                 output="screen",
                 parameters=[
                     {

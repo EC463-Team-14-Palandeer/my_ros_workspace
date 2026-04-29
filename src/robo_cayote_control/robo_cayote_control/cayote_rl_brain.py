@@ -36,7 +36,7 @@ class CayoteInferenceNode(Node):
                 "learning_rate": 0.0
             }
             
-            self.model = SAC.load("/workspaces/isaac_ros-dev/src/robo_cayote_control/models/sac_cayote_curriculum_490000_steps.zip", custom_objects=custom_objects)
+            self.model = SAC.load("/workspaces/isaac_ros-dev/src/robo_cayote_control/models/sac_cayote_curriculum_100000_steps", custom_objects=custom_objects)
         except Exception as e:
             self.get_logger().error(f"Failed to load model: {e}")
             sys.exit(4) 
@@ -213,7 +213,10 @@ class CayoteInferenceNode(Node):
 
         ], dtype=np.float32)
         
-
+        # DEBUG BOGGY --> PRINT THE OUTPUT OF CURRENT_OBS TO SEE WHAT YOLO IS SENDING AND OTHER STUFF (IGNORE COSTMAP FOR NOW...)
+        print(f"current_obs is now: {current_obs} --taggert") # --taggert will be how we find it with CTRL+F easier.
+        
+        
         
         current_frame = np.concatenate((current_obs, self.latest_costmap_array))
 

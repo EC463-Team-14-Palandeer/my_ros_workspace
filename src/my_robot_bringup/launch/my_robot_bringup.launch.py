@@ -25,9 +25,13 @@ def generate_launch_description():
     # --- Launch Configuration ---
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
     enable_ris_stream = LaunchConfiguration('enable_ris_stream', default='true')
-    rtsp_url = LaunchConfiguration(
-        'rtsp_url',
+    raw_rtsp_url = LaunchConfiguration(
+        'raw_rtsp_url',
         default='rtsp://127.0.0.1:8554/robot_raw'
+    )
+    yolo_rtsp_url = LaunchConfiguration(
+        'yolo_rtsp_url',
+        default='rtsp://127.0.0.1:8554/robot_yolo'
     )
     log_ffmpeg_stderr = LaunchConfiguration('log_ffmpeg_stderr', default='true')
     arduino_serial_port = LaunchConfiguration(
@@ -150,6 +154,9 @@ def generate_launch_description():
              parameters=[{'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='mqtt_ack_node', 
              parameters=[mqtt_config, {'use_sim_time': use_sim_time}]),
+        Node(package='robo_cayote_control', executable='yolo_processor',
+             output='screen',
+             parameters=[{'use_sim_time': use_sim_time}]),
         Node(package='robo_cayote_control', executable='cayote_rl_brain', 
              parameters=[{'use_sim_time': use_sim_time}]),
         # Merged Witmotion IMU Node
@@ -185,13 +192,29 @@ def generate_launch_description():
         }],
     )
 
-    ris_go2rtc_stream = IncludeLaunchDescription(
+    raw_go2rtc_stream = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(control_pkg_share, 'launch', 'ris_go2rtc.launch.py')
         ),
         condition=IfCondition(enable_ris_stream),
         launch_arguments={
-            'rtsp_url': rtsp_url,
+            'node_name': 'ris_go2rtc_raw_node',
+            'image_topic': '/camera/camera/color/image_raw',
+            'rtsp_url': raw_rtsp_url,
+            'log_ffmpeg_stderr': log_ffmpeg_stderr,
+            'use_sim_time': use_sim_time,
+        }.items()
+    )
+
+    yolo_go2rtc_stream = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(control_pkg_share, 'launch', 'ris_go2rtc.launch.py')
+        ),
+        condition=IfCondition(enable_ris_stream),
+        launch_arguments={
+            'node_name': 'ris_go2rtc_yolo_node',
+            'image_topic': '/yolo/annotated_image',
+            'rtsp_url': yolo_rtsp_url,
             'log_ffmpeg_stderr': log_ffmpeg_stderr,
             'use_sim_time': use_sim_time,
         }.items()
@@ -204,13 +227,18 @@ def generate_launch_description():
         DeclareLaunchArgument('gps_host', default_value='10.0.0.2'),
         DeclareLaunchArgument('gps_port', default_value='5000'),
         DeclareLaunchArgument(
-            'rtsp_url',
+            'raw_rtsp_url',
             default_value='rtsp://127.0.0.1:8554/robot_raw'
         ),
-        DeclareLaunchArgument('log_ffmpeg_stderr', default_value='false'),
+        DeclareLaunchArgument(
+            'yolo_rtsp_url',
+            default_value='rtsp://127.0.0.1:8554/robot_yolo'
+        ),
+        DeclareLaunchArgument('log_ffmpeg_stderr', default_value='true'),
         
         realsense_node,
-        ris_go2rtc_stream,
+        raw_go2rtc_stream,
+        yolo_go2rtc_stream,
         state_publishers,
         isaac_stack,
         localization_stack,

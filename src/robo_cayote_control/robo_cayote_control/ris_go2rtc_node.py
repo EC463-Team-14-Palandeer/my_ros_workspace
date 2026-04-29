@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 
 DEFAULTS = {
     "image_topic": "/camera/camera/color/image_raw",
-    "rtsp_url": "rtsp://127.0.0.1:8554/robot_raw",
+    "rtsp_url": "rtsp://127.0.0.1:8554/robot_yolo",
     "width": 0,
     "height": 0,
     "fps": 30,
